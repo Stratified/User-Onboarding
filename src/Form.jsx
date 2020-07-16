@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import User from './User';
+import Input from './Input';
 import * as yup from 'yup';
 import axios from 'axios';
 
-const Form = () => {
+const Form = (props) => {
 	const defaultState = {
 		name: '',
 		email: '',
@@ -11,82 +11,109 @@ const Form = () => {
 		terms: false,
 	};
 
-	const [form, setForm] = useState(defaultState);
+	const [formState, setFormState] = useState(defaultState);
+
+	// all errors need to be a string so the error messages can be displayed
 	const [errors, setErrors] = useState({ ...defaultState, terms: '' });
+	const [buttonDisabled, setButtonDisabled] = useState(true);
 
-	const handleSubmit = (e) => {
-		e.preventDefault();
-		axios
-			.post('https://reqres.in/api/users', form)
-			.then((res) => console.log('Success: ', res))
-			.catch((err) => console.log('Error: ', err));
-	};
-
-	const handleChange = (e) => {
-		setForm({ ...form, [e.target.name]: e.target.value });
-	};
-
+	// formState schema
 	let formSchema = yup.object().shape({
-		name: yup.string().required('Name is required!'),
-		email: yup.string().required().email('Email is required!'),
-		password: yup.string().required('Password is required!'),
-		terms: yup.boolean().oneOf([true], 'Please accept the ToS!'),
+		name: yup.string().required('Please provide your name.'),
+		email: yup
+			.string()
+			.required('Please provide your email.')
+			.email('This is not a valid email.'),
+		password: yup.string().required('Please create your unique password.'),
+		terms: yup
+			.boolean()
+			.oneOf([true], 'Please agree to our Terms & Conditions.'),
 	});
 
-	const validateSchema = (e) => {
-		e.persists();
+	useEffect(() => {
+		formSchema.isValid(formState).then((valid) => setButtonDisabled(!valid));
+	}, [formState]);
+
+	// onSubmit function
+	const formSubmit = (e) => {
+		e.preventDefault();
+		console.log('form submitted!');
+		axios
+			.post('https://reqres.in/api/users', formState)
+			.then((res) => {
+				console.log(`form submit success! "${res.data.name}" has been added!`);
+				console.log(res.data);
+				props.setUsers([...props.users, res.data]);
+			})
+			.catch((err) => console.log(err));
+	};
+
+	// validate whether value meets schema
+	const validateChange = (e) => {
+		e.persist();
+		// reach allows us to check a specific value of the schema
 		yup
 			.reach(formSchema, e.target.name)
 			.validate(e.target.value)
-			.then((valid) => setErrors({ ...errors, [e.target.name]: '' }))
+			.then((valid) =>
+				setErrors({
+					...errors,
+					[e.target.name]: '',
+				})
+			)
 			.catch((error) =>
-				setErrors({ ...errors, [e.target.name]: error.errors[0] })
+				setErrors({
+					...errors,
+					[e.target.name]: error.errors[0],
+				})
 			);
 	};
 
+	// onChange function
+	const inputChange = (e) => {
+		// ternary operator to determine the form value
+		// console.log(e.target.type);
+		const value =
+			e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+		setFormState({
+			...formState,
+			[e.target.name]: value,
+		});
+		validateChange(e);
+	};
+
 	return (
-		<div>
-			<form onSubmit={handleSubmit}>
-				<label value='Name'>Name</label>
-				<input
-					type='text'
-					name='name'
-					placeholder='Name'
-					value={form.name}
-					onChange={handleChange}
-					errors={errors}
-				/>
-				<label value='Password'>Password</label>
-				<input
-					type='text'
-					name='password'
-					placeholder='Password'
-					value={form.password}
-					onChange={handleChange}
-					errors={errors}
-				/>
-				<label value='Email'>Email</label>
-				<input
-					type='text'
-					name='email'
-					placeholder='Email'
-					value={form.email}
-					onChange={handleChange}
-					errors={errors}
-				/>
-				<label htmlFor='checkBox'>
-					Terms and Conditions
-					<input
-						type='checkbox'
-						name='terms'
-						value={form.terms}
-						onChange={handleChange}
-						errors={errors}
-					></input>
-				</label>
-				<button type='submit'>Submit</button>
-			</form>
-		</div>
+		<form onSubmit={formSubmit}>
+			<Input
+				type='text'
+				name='name'
+				onChange={inputChange}
+				value={formState.name}
+				label='Name'
+				errors={errors}
+			/>
+			<Input
+				type='text'
+				name='email'
+				onChange={inputChange}
+				value={formState.email}
+				label='Email'
+				errors={errors}
+			/>
+			<Input
+				type='password'
+				name='password'
+				onChange={inputChange}
+				value={formState.password}
+				label='Password'
+				errors={errors}
+			/>
+			<label className='terms' htmlFor='terms'>
+				<input name='terms' type='checkbox' onChange={inputChange} />
+				Terms & Conditions
+			</label>
+			<button disabled={buttonDisabled}>Submit</button>
+		</form>
 	);
 };
 
